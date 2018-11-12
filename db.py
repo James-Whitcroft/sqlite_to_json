@@ -1,86 +1,89 @@
 #!/usr/bin/env python3
-import sqlite3 as s_
-import json as j_
+
+import sqlite3 as sql3
+import json
 import os
-r_={}
-d_={}
-s__=[115,101,108,101,99,116,32,110,97,109,101,32,102,114,111,109,32,115,113,108,105,116,101,95,109,97,115,116,101,114,32,119,104,101,114,101,32,116,121,112,101,61,39,116,97,98,108,101,39]
-pr__=[112,114,97,103,109,97,32,116,97,98,108,101,95,105,110,102,111]
-pd__=[32, 112, 111, 116, 101, 110, 116, 105, 97, 108, 32, 100, 97, 116, 97, 98, 97, 115, 101, 115, 10]
-f__=[70, 111, 117, 110, 100, 32]
-dr__=[100, 105, 114, 32, 47, 115, 32, 42, 46, 115, 113, 108, 105, 116, 101]
-sl__=[115, 101, 108, 101, 99, 116, 32]
-fr__=[32, 102, 114, 111, 109, 32]
-di__=[68, 105, 114, 101, 99, 116, 111, 114, 121]
-def gdb_():
+
+return_dict={}
+data_dict={}
+
+
+
+def gather_dbs():
   os.chdir('c:')
   os.chdir('/')
-  p = os.popen(''.join([chr(x) for x in dr__]), 'r')
-  for x in p:
-    if ''.join([chr(x) for x in di__]) in x:
-      d_[x[x.find('of')+3:]]=[]
-      c_ = x[x.find('of')+3:]
-    elif 'AM' in x or 'PM' in x:
-      d_[c_].append(x.split()[-1])
+  potentials = os.popen('dir /s *.sqlite', 'r')
+  for potential in potentials:
+  
+    if 'Directory' in potential:
+      data_dict[potential[potential.find('of') + 3:]] = []
+      key = potential[potential.find('of') + 3:]
       
-def gt_(c):
-  global s__
-  c_ = c.execute(''.join([chr(x) for x in s__]))
-  for x in c_:
-    r_[str(x[0])] = {}
+    elif 'AM' in potential or 'PM' in potential:
+      data_dict[key].append(potential.split()[-1])
+      
+def get_tables(cursor):
+  cursor = cursor.execute("select name from sqlite_master where type='table'")
+  for x in cursor:
+    return_dict[str(x[0])] = {}
   return
   
-def gc_(c,t):
-  c_ = c.execute(''.join([chr(x) for x in pr__])+"(\'"+t+"\')")
+def get_columns(cursor, table_name):
+  c_ = cursor.execute('pragma table_info (\'' + table_name + "\')")
   for x in c_:
-    r_[t][str(x[1])] = {}
+    return_dict[table_name][str(x[1])] = {}
   return
   
-def gcd_(c, cc, t):
-  c_ = c.execute(''.join([chr(x) for x in sl__])+cc+''.join([chr(x) for x in fr__])+t)
-  r_[t][cc] = []
+def run_query(cursor, search_term, table_name):
+  c_ = cursor.execute('select ' + search_term + ' from ' + table_name)
+  return_dict[table_name][search_term] = []
   for x in c_:
     try:
-      r_[t][cc].append(str(x[0]))
+      return_dict[table_name][search_term].append(str(x[0]))
     except Exception as err:
-      r_[t][cc].append('')
+      return_dict[table_name][search_term].append('')
   return
 
-def d():
+def discover_dbs():
   if os.name == 'nt':
-    t = input("To >> ")
-    gdb_()
-    print(''.join([chr(x) for x in f__])+str(len(d_.keys()))+''.join([chr(x) for x in pd__]))
-    for x in d_:
+    write_to = input("To >> ")
+    gather_dbs()
+    print('Found ' +str(len(data_dict.keys())) + ' potential databases\n')
+    for x in data_dict:
       print(x)
-      for y in d_[x]:
+      for y in data_dict[x]:
         print('+++ '+ y)
       print('\n')
       print('+'*len(x))
-    ff_ = open(t, 'w')
-    ff_.write(j_.dumps(d_))
+    ff_ = open(write_to, 'w')
+    ff_.write(json.dumps(data_dict))
     ff_.close()
   return
   
-def m():
-  # d()
-  i = input("From >> ")
-  q = input("To >> ")
+def main():
+  # discover_dbs()
+  user_in = input("From >> ")
+  user_out = input("To >> ")
+  
   try:
-    c_=s_.connect(i)
+    c_ = sql3.connect(user_in)
     c_.text_factory = lambda x: str(x, 'latin1')
   except Exception as err:
     print(str(err))
     return
-  c__=c_.cursor()
-  gt_(c__)
-  for y in r_:
-    gc_(c__, y)
-  for z in r_:
-    for z_ in r_[z]:
-      gcd_(c__, z_, z)
-  f_ = open(q, 'w')
-  f_.write(j_.dumps(r_))
+  
+  cursor = c_.cursor()
+  get_tables(cursor)
+  
+  for y in return_dict:
+    get_columns(cursor, y)
+    
+  for z in return_dict:
+    for z_ in return_dict[z]:
+      run_query(cursor, z_, z)
+      
+  f_ = open(user_out, 'w')
+  f_.write(json.dumps(return_dict))
   f_.close()
 
-m()
+main()
